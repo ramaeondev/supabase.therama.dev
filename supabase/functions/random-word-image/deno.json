@@ -1,0 +1,6 @@
+{
+    "importMap": "../import_map.json",
+    "tasks": {},
+    "env": ["PEXELS_API_KEY", "PIXABAY_API_KEY", "FLICKR_API_KEY"]
+  }
+  
