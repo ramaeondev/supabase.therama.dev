@@ -45,13 +45,18 @@ serve(async (req: Request) => {
 
     if (!response.ok) {
       console.error(result);
-      return new Response("Failed to send email", { status: 500 });
+      return new Response("Failed to send email", {
+        status: 500,
+        headers: corsHeaders,
+      });
     }
 
     return new Response(
       JSON.stringify({ message: "Email sent successfully!" }),
       {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          ...corsHeaders,
+         },
         status: 200,
       },
     );
