@@ -339,3 +339,10 @@ entrypoint = "./functions/send-contact-email/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-contact-email/*.html" ]
+
+
+[functions.update-project-version]
+enabled = true
+verify_jwt = true
+import_map = "./functions/update-project-version/deno.json"
+entrypoint = "./functions/update-project-version/index.ts"
