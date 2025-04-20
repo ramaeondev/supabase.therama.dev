@@ -27,8 +27,8 @@ serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Rama <rama@cloudnotes.click>",
-        to: "ramaeon.dev@gmail.com",
+        from: "Rama <rama@therama.dev>",
+        to: "rama@therama.dev",
         cc: [email],
         subject: `New message from ${name}: ${subject}`,
         html: `
