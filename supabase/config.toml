@@ -346,3 +346,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/update-project-version/deno.json"
 entrypoint = "./functions/update-project-version/index.ts"
+
+[functions.log-deployment]
+enabled = true
+verify_jwt = true
+import_map = "./functions/log-deployment/deno.json"
+entrypoint = "./functions/log-deployment/index.ts"
