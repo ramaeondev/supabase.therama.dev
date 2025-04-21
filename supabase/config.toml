@@ -364,3 +364,15 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/get-projects/deno.json"
 entrypoint = "./functions/get-projects/index.ts"
+
+[functions.get-project-statuses]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get-project-statuses/deno.json"
+entrypoint = "./functions/get-project-statuses/index.ts"
+
+[functions.get-social-links]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get-social-links/deno.json"
+entrypoint = "./functions/get-social-links/index.ts"
