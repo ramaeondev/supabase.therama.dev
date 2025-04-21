@@ -21,11 +21,11 @@ serve(async (req) => {
       github_sha,
       github_ref,
       actor,
-      notes,
+      commit_message,
       source = 'GitHub Actions',
       deployment_url,
       duration_in_seconds,
-      success = true
+      is_success = true
     } = body
 
     if (!project_id || !version || !status) {
@@ -41,11 +41,11 @@ serve(async (req) => {
       github_sha,
       github_ref,
       actor,
-      notes,
+      commit_message,
       source,
       deployment_url,
       duration_in_seconds,
-      success
+      is_success
     }])
 
     if (error) {
