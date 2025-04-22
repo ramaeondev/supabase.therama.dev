@@ -1,0 +1,88 @@
+
+name: Deploy to AWS S3 + CoudFront + CloudFlare
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+
+jobs:
+  update_supabase:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Capture start time
+        run: echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy README and package.json to public
+        run: |
+          mkdir -p public/meta
+          cp README.md public/meta/
+          cp package.json public/meta/
+  
+      - name: Read package.json and POST to Projects table          
+        run: |
+            VERSION=$(jq -r '.version' package.json)
+            STATUS=$(jq -r '.status' package.json)
+            PROJECT_ID=$(jq -r '.project_id' package.json)
+            update_project_version=$(jq -r '.update_project_version' package.json)
+    
+            echo "Version: $VERSION"
+            echo "Status: $STATUS"
+            echo "Project ID: $PROJECT_ID"
+            echo "update_project_version: $update_project_version"
+    
+            RESPONSE=$(curl -s -X POST $update_project_version \
+              -H "Content-Type: application/json" \
+              -d '{
+                "project_id": "'"$PROJECT_ID"'",
+                "version": "'"$VERSION"'",
+                "status": "'"$STATUS"'"
+              }')
+    
+            echo "$RESPONSE" > deployment-status.json
+    
+      - name: Upload deployment status as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-status
+          path: deployment-status.json
+
+      - name: Log deployment to Supabase
+        run: |
+                VERSION=$(jq -r '.version' package.json)
+                STATUS=$(jq -r '.status' package.json)
+                PROJECT_ID=$(jq -r '.project_id' package.json)
+                log_deployment=$(jq -r '.log_deployment' package.json)
+                COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/"/\\"/g')
+                
+                END_TIME=$(date +%s)
+                DURATION=$((END_TIME - START_TIME))
+                IS_SUCCESS=${{ job.status == 'success' && 'true' || 'false' }}
+                
+                # Create JSON payload with proper escaping
+                JSON_PAYLOAD=$(cat <<EOF
+                {
+                  "project_id": "$PROJECT_ID",
+                  "version": "$VERSION",
+                  "status": "$STATUS",
+                  "github_sha": "${{ github.sha }}",
+                  "github_ref": "${{ github.ref }}",
+                  "actor": "${{ github.actor }}",
+                  "commit_message": "$COMMIT_MESSAGE",
+                  "deployment_url": "https://apps.therama.dev/",
+                  "duration_in_seconds": $DURATION,
+                  "is_success": $IS_SUCCESS
+                }
+                EOF
+                )
+                
+                # Send the request with properly formatted JSON
+                curl -s -X POST "$log_deployment" \
+                  -H "Content-Type: application/json" \
+                  -d "$JSON_PAYLOAD"
+        
