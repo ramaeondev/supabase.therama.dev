@@ -39,8 +39,8 @@ interface RepositoryStats {
 }
 
 interface RequestPayload {
-  org: string;
   group_by_repository?: boolean;
+  is_logs_required?: boolean;
 }
 
 async function getRepos(org: string): Promise<any[]> {
@@ -79,10 +79,14 @@ async function getWorkflowRuns(org: string, repo: string): Promise<any[]> {
   return data.workflow_runs || [];
 }
 
-function processRepositories(logs: WorkflowLog[], org: string): RepositoryStats[] {
+// Update the processRepositories function signature to handle nullable logs
+function processRepositories(logs: (WorkflowLog | null)[], org: string): RepositoryStats[] {
   const repoMap = new Map<string, RepositoryStats>();
   
-  logs.forEach(log => {
+  // Filter out null logs before processing
+  const validLogs = logs.filter((log): log is WorkflowLog => log !== null);
+  
+  validLogs.forEach(log => {
     if (!repoMap.has(log.repo)) {
       repoMap.set(log.repo, {
         name: log.repo,
@@ -120,11 +124,14 @@ serve(async (req) => {
       return new Response('Method must be POST', { status: 405 });
     }
 
-    const payload: RequestPayload = await req.json();
-    const { org, group_by_repository = false } = payload;
+    const payload = await req.json() as RequestPayload;
+    const { 
+      group_by_repository = false, 
+      is_logs_required = true 
+    } = payload;
 
-    const repos = await getRepos(org);
-    const results: (WorkflowLog | null)[] = []; // Updated type annotation
+    const repos = await getRepos(GITHUB_ORG); // Use GITHUB_ORG from secrets
+    const results: (WorkflowLog | null)[] = [];
 
     await Promise.all(repos.map(async (repo) => {
       try {
@@ -154,7 +161,7 @@ serve(async (req) => {
                 committer: run.head_commit?.committer?.name || '',
                 timestamp: run.head_commit?.timestamp || ''
               }
-            } as WorkflowLog; // Type assertion to ensure it matches WorkflowLog
+            } as WorkflowLog;
           } catch (error) {
             console.error(`Error fetching logs for ${repo.name}/${run.id}:`, error);
             return null;
@@ -168,24 +175,20 @@ serve(async (req) => {
     }));
 
     if (group_by_repository) {
-      // Group logs by repository
       const repoMap = new Map<string, RepositoryStats>();
-      
-      // Filter out null values before processing
       const validLogs = results.filter((log): log is WorkflowLog => log !== null);
       
       validLogs.forEach(log => {
         if (!repoMap.has(log.repo)) {
           repoMap.set(log.repo, {
             name: log.repo,
-            url: `https://github.com/${org}/${log.repo}`,
+            url: `https://github.com/${GITHUB_ORG}/${log.repo}`,
             created_at: log.created_at,
             total_workflows: 0,
             successful_deployments: 0,
             failed_deployments: 0,
             total_deployment_time: 0,
-            workflow_logs: [] // Initialize empty array
-
+            workflow_logs: is_logs_required ? [] : undefined
           });
         }
         
@@ -204,8 +207,10 @@ serve(async (req) => {
           repoStats.created_at = log.created_at;
         }
 
-         // Add the workflow log to the repository's logs
-        repoStats.workflow_logs?.push(log);
+        // Only add logs if required
+        if (is_logs_required) {
+          repoStats.workflow_logs?.push(log);
+        }
       });
 
       return new Response(JSON.stringify({
@@ -217,10 +222,9 @@ serve(async (req) => {
         },
       });
     } else {
-      // Return in existing format
       return new Response(JSON.stringify({
-        repositories: processRepositories(results as WorkflowLog[], org),
-        workflow_logs: results
+        repositories: processRepositories(results, GITHUB_ORG),
+        ...(is_logs_required && { workflow_logs: results })
       }, null, 2), {
         headers: { 
           "Content-Type": "application/json",
@@ -228,7 +232,6 @@ serve(async (req) => {
         },
       });
     }
-
   } catch (err) {
     console.error("Error:", err);
     return new Response(JSON.stringify({ error: err.message }), { 
