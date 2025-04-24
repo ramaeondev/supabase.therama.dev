@@ -11,7 +11,7 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const { data, error } = await supabase.from("projects").select("*");
+  const { data, error } = await supabase.from("projects_with_status").select("*");
 
   if (error) {
     return addCorsHeaders(

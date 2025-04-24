@@ -15,7 +15,7 @@ serve(async (req) => {
   const project_id = url.searchParams.get("project_id");
 
   let query = supabase
-    .from("deploy_logs")
+    .from("deploy_logs_with_project_name")
     .select("*")
     .order("created_at", { ascending: false });
 
