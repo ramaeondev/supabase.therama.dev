@@ -28,7 +28,9 @@ serve(async (req) => {
       throw new Error("Missing or invalid 'filename' in request body.");
     }
 
-    const url = `https://${bucket}.s3.${region}.amazonaws.com/${filename}`;
+    // const url = `https://${bucket}.s3.${region}.amazonaws.com/${filename}`;
+    const url = `https://s3.${region}.amazonaws.com/${bucket}/${filename}`;
+
 
     const response = new Response(
       JSON.stringify({ url }),
