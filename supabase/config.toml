@@ -388,6 +388,18 @@ entrypoint = "./functions/get-s3-file/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/get-s3-file/*.html" ]
 
+[functions.s3-billing-metrics]
+enabled = true
+verify_jwt = false
+import_map = "./functions/s3-billing-metrics/deno.json"
+entrypoint = "./functions/s3-billing-metrics/index.ts"
+
+[functions.get-s3-billing-logs]
+enabled = true
+verify_jwt = false
+import_map = "./functions/s3-billing-metrics/deno.json"
+entrypoint = "./functions/get-s3-billing-logs/index.ts"
+
 [functions.github-webhook-workflow]
 enabled = true
 verify_jwt = true

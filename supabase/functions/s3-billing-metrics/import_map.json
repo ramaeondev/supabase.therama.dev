@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3",
+    "@aws-sdk/client-cloudwatch": "npm:@aws-sdk/client-cloudwatch"
+  }
+}
