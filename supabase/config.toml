@@ -449,3 +449,12 @@ verify_jwt = true
 import_map = "./functions/upload-files/deno.json"
 entrypoint = "./functions/upload-files/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
+
+[functions.fetch-files-folders]
+enabled = true
+verify_jwt = true
+import_map = "./functions/fetch-files-folders/deno.json"
+entrypoint = "./functions/fetch-files-folders/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/fetch-files-folders/*.html" ]
