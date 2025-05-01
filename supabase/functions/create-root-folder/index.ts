@@ -17,40 +17,61 @@ const s3 = new S3Client({
 });
 
 serve(async (req) => {
+  // Handle CORS preflight
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Missing or invalid token' }), { status: 401 }));
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
-    if (error || !user) {
+    if (authError || !user) {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Invalid user session' }), { status: 401 }));
     }
 
-    const { name } = await req.json();
-    const s3_key_prefix = `${user.id}/${name}/`;
+    const user_id = user.id;
+    const name = 'Root';
+    const s3_key_prefix = `${user_id}/${name}/`;
+    const path = `${user_id}/${name}`;
 
+    // Check if root folder already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('user_id', user_id)
+      .eq('is_root', true)
+      .single();
+
+    if (existing) {
+      return addCorsHeaders(new Response(JSON.stringify({ message: 'Root folder already exists' }), { status: 200 }));
+    }
+
+    // Create root folder in S3
     await s3.send(new PutObjectCommand({
       Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
       Key: s3_key_prefix,
       Body: '',
     }));
 
+    // Insert root folder metadata
     const { error: insertError } = await supabase.from('folders').insert([
       {
         name,
-        user_id: user.id,
+        user_id,
         parent_folder_id: null,
         s3_key_prefix,
+        path,
         is_system: true,
         is_root: true,
-      }
+      },
     ]);
 
     if (insertError) {

@@ -44,39 +44,39 @@ serve(async (req) => {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Forbidden: Cannot act on another user\'s folders' }), { status: 403 }));
     }
 
-    // Build S3 key prefix
-    let s3_key_prefix = `${user_id}/`;
-
-    if (parent_folder_id) {
-      const { data: parent, error } = await supabase
-        .from('folders')
-        .select('s3_key_prefix')
-        .eq('id', parent_folder_id)
-        .single();
-
-      if (error || !parent) {
-        return addCorsHeaders(new Response(JSON.stringify({ error: 'Invalid parent_folder_id' }), { status: 400 }));
-      }
-
-      s3_key_prefix = `${parent.s3_key_prefix}${name}/`;
-    } else {
-      s3_key_prefix += `${name}/`;
+    if (!parent_folder_id) {
+      return addCorsHeaders(new Response(JSON.stringify({ error: 'Cannot create folder at root level' }), { status: 400 }));
     }
 
-    // Create a "folder" in S3 (via empty object with trailing slash key)
+    // Fetch parent folder to build path and S3 prefix
+    const { data: parent, error: parentError } = await supabase
+      .from('folders')
+      .select('s3_key_prefix, path')
+      .eq('id', parent_folder_id)
+      .single();
+
+    if (parentError || !parent) {
+      return addCorsHeaders(new Response(JSON.stringify({ error: 'Invalid parent_folder_id' }), { status: 400 }));
+    }
+
+    const s3_key_prefix = `${parent.s3_key_prefix}${name}/`;
+    const path = `${parent.path}/${name}`;
+
+    // Create folder in S3
     await s3.send(new PutObjectCommand({
       Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
       Key: s3_key_prefix,
       Body: '',
     }));
 
-    // Insert metadata into Supabase
+    // Insert into Supabase DB
     const { error: insertError } = await supabase.from('folders').insert([
       {
         name,
         user_id,
-        parent_folder_id: parent_folder_id ?? null,
+        parent_folder_id,
         s3_key_prefix,
+        path,
       },
     ]);
 
