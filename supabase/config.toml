@@ -433,3 +433,19 @@ entrypoint = "./functions/create-folder/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/create-folder/*.html" ]
+
+[functions.fetch-folder-structure]
+enabled = true
+verify_jwt = true
+import_map = "./functions/fetch-folder-structure/deno.json"
+entrypoint = "./functions/fetch-folder-structure/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/fetch-folder-structure/*.html" ]
+
+[functions.upload-files]
+enabled = true
+verify_jwt = true
+import_map = "./functions/upload-files/deno.json"
+entrypoint = "./functions/upload-files/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
