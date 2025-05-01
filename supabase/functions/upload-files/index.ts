@@ -45,6 +45,24 @@ serve(async (req) => {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Missing file, folder_id, or user_id' }), { status: 400 }));
     }
 
+    // Optionally, check if file extension is in the supported list, but allow upload anyway
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const { data: supportedExtensions, error: extensionsError } = await supabase
+      .from('supported_file_extensions')
+      .select('extension')
+      .eq('extension', `.${fileExtension}`)
+      .single();
+
+    if (extensionsError) {
+      console.warn('Error fetching supported extensions:', extensionsError.message);
+    }
+
+    // Optional: Log or notify user about unsupported file type (but still allow upload)
+    if (!supportedExtensions) {
+      console.warn('File extension not in supported list:', fileExtension);
+      // Optionally notify the user that the file extension is not supported
+    }
+
     // Get folder to construct path
     const { data: folder, error: folderError } = await supabase
       .from('folders')
@@ -59,37 +77,28 @@ serve(async (req) => {
 
     const s3Key = `${folder.s3_key_prefix}${file.name}`;
 
-    // Upload the file to S3
-    try {
-      await s3.send(new PutObjectCommand({
-        Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
-        Key: s3Key,
-        Body: file.stream(),
-        ContentType: file.type,
-      }));
-    } catch (s3Error) {
-      return addCorsHeaders(new Response(JSON.stringify({ error: 'Failed to upload file to S3' }), { status: 500 }));
-    }
+    await s3.send(new PutObjectCommand({
+      Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
+      Key: s3Key,
+      Body: file.stream(),
+      ContentType: file.type,
+    }));
 
     // Save file metadata to Supabase
-    try {
-      const { error: insertError } = await supabase.from('files').insert([{
-        name: file.name,
-        folder_id: folderId,
-        user_id: userId,
-        s3_key: s3Key,
-        content_type: file.type,
-        size: file.size,
-      }]);
+    const { error: insertError } = await supabase.from('files').insert([{
+      name: file.name,
+      folder_id: folderId,
+      user_id: userId,
+      s3_key: s3Key,
+      content_type: file.type,
+      size: file.size,
+    }]);
 
-      if (insertError) {
-        return addCorsHeaders(new Response(JSON.stringify({ error: insertError.message }), { status: 500 }));
-      }
-
-      return addCorsHeaders(new Response(JSON.stringify({ message: 'File uploaded successfully' }), { status: 200 }));
-    } catch (insertError) {
-      return addCorsHeaders(new Response(JSON.stringify({ error: 'Failed to insert file metadata' }), { status: 500 }));
+    if (insertError) {
+      return addCorsHeaders(new Response(JSON.stringify({ error: insertError.message }), { status: 500 }));
     }
+
+    return addCorsHeaders(new Response(JSON.stringify({ message: 'File uploaded successfully' }), { status: 200 }));
   } catch (err) {
     console.error(err);
     return addCorsHeaders(new Response(JSON.stringify({ error: 'Server error' }), { status: 500 }));
