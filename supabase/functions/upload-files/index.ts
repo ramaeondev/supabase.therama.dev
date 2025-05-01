@@ -45,49 +45,57 @@ serve(async (req) => {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Missing file, folder_id, or user_id' }), { status: 400 }));
     }
 
-    // Optionally, check if file extension is in the supported list, but allow upload anyway
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
-    const { data: supportedExtensions, error: extensionsError } = await supabase
-      .from('supported_file_extensions')
-      .select('extension')
-      .eq('extension', `.${fileExtension}`)
-      .single();
+    // Try to get the folder, if not found, fall back to root folder
+    let folder = null;
 
-    if (extensionsError) {
-      console.warn('Error fetching supported extensions:', extensionsError.message);
+    if (folderId) {
+      const { data: folderData, error: folderError } = await supabase
+        .from('folders')
+        .select('s3_key_prefix')
+        .eq('id', folderId)
+        .eq('user_id', userId)
+        .single();
+
+      if (folderError || !folderData) {
+        // Folder not found, fall back to root folder
+        console.log('Folder not found, uploading to root folder');
+      } else {
+        folder = folderData;
+      }
     }
 
-    // Optional: Log or notify user about unsupported file type (but still allow upload)
-    if (!supportedExtensions) {
-      console.warn('File extension not in supported list:', fileExtension);
-      // Optionally notify the user that the file extension is not supported
+    // If folder is not found, use the root folder's key prefix
+    if (!folder) {
+      const { data: rootFolder, error: rootFolderError } = await supabase
+        .from('folders')
+        .select('s3_key_prefix')
+        .eq('is_root', true)
+        .eq('user_id', userId)
+        .single();
+
+      if (rootFolderError || !rootFolder) {
+        return addCorsHeaders(new Response(JSON.stringify({ error: 'Root folder not found' }), { status: 404 }));
+      }
+
+      // Set the folder's S3 key prefix to the root folder's key prefix
+      folder = { s3_key_prefix: rootFolder.s3_key_prefix };
     }
 
-    // Get folder to construct path
-    const { data: folder, error: folderError } = await supabase
-      .from('folders')
-      .select('s3_key_prefix')
-      .eq('id', folderId)
-      .eq('user_id', userId)
-      .single();
-
-    if (folderError || !folder) {
-      return addCorsHeaders(new Response(JSON.stringify({ error: 'Folder not found' }), { status: 404 }));
-    }
-
+    // Set the S3 key for the file upload
     const s3Key = `${folder.s3_key_prefix}${file.name}`;
 
+    // Upload the file to S3
     await s3.send(new PutObjectCommand({
       Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
       Key: s3Key,
-      Body: file.stream(),
+      Body: new Uint8Array(await file.arrayBuffer()),
       ContentType: file.type,
     }));
 
     // Save file metadata to Supabase
     const { error: insertError } = await supabase.from('files').insert([{
       name: file.name,
-      folder_id: folderId,
+      folder_id: folderId || null,  // If no folderId, set it to null
       user_id: userId,
       s3_key: s3Key,
       content_type: file.type,
