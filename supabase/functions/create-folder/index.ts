@@ -60,8 +60,10 @@ serve(async (req) => {
     }
 
     const s3_key_prefix = `${parent.s3_key_prefix}${name}/`;
-    const path = `${parent.path}/${name}`;
-
+    const path =
+    parent.path && parent.path !== 'null'
+      ? `${parent.path}/${name}`
+      : `Root/${name}`;
     // Create folder in S3
     await s3.send(new PutObjectCommand({
       Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
