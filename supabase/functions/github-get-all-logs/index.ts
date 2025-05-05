@@ -61,7 +61,7 @@ async function getRepos(org: string): Promise<any[]> {
 
 async function getWorkflowRuns(org: string, repo: string): Promise<any[]> {
   const res = await fetch(
-    `https://api.github.com/repos/${org}/${repo}/actions/runs`,
+    `https://api.github.com/repos/${org}/${repo}/actions/runs?per_page=100`,
     {
       headers: {
         Authorization: `Bearer ${GITHUB_PAT}`,
