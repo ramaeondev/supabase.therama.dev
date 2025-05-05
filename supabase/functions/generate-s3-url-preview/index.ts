@@ -23,6 +23,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
+    // Authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Missing or invalid token' }), { status: 401 }));
@@ -35,52 +36,62 @@ serve(async (req) => {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Invalid user session' }), { status: 401 }));
     }
 
+    // Parse request body
     const { s3Key } = await req.json();
-
     if (!s3Key) {
       return addCorsHeaders(new Response(JSON.stringify({ error: 'Missing S3 key' }), { status: 400 }));
     }
 
-    // Get file extension
-    const fileExtension = s3Key.split('.').pop()?.toLowerCase() || '';
-    
-    // Query content type from Supabase
-    const { data: contentTypeData, error: contentTypeError } = await supabase
-      .from('content_types')
-      .select('mime_type')
-      .eq('extension', fileExtension)
+    // Verify file ownership and get file metadata
+    const { data: fileData, error: fileError } = await supabase
+      .from('files')
+      .select('user_id, content_type, name, is_deleted, is_archived')
+      .eq('s3_key', s3Key)
+      .eq('user_id', user.id)
       .single();
 
-    const contentType = contentTypeData?.mime_type || 'application/octet-stream';
+    if (fileError || !fileData) {
+      return addCorsHeaders(new Response(JSON.stringify({ 
+        error: 'File not found or access denied' 
+      }), { status: 403 }));
+    }
 
-    // Create the GetObjectCommand with appropriate content type
+    // Check if file is available
+    if (fileData.is_deleted || fileData.is_archived) {
+      return addCorsHeaders(new Response(JSON.stringify({ 
+        error: 'File is not available' 
+      }), { status: 410 }));
+    }
+
+    // Get content type (prefer the one from files table)
+    const contentType = fileData.content_type || 'application/octet-stream';
+    const filename = fileData.name;
+
+    // Generate S3 signed URL
     const command = new GetObjectCommand({
       Bucket: Deno.env.get('S3_BUCKET_Cloudnotes_Bucket')!,
       Key: s3Key,
       ResponseContentType: contentType,
-      ResponseContentDisposition: `inline; filename="${s3Key.split('/').pop()}"`
+      ResponseContentDisposition: `inline; filename="${filename}"`
     });
 
-    // Generate a pre-signed URL that expires in 1 hour
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
 
     return addCorsHeaders(
       new Response(JSON.stringify({ 
         url: signedUrl,
         contentType,
-        filename: s3Key.split('/').pop()
-      }), {
+        filename
+      }), { 
         status: 200,
-        headers: { 'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-         }
+        headers: { 'Content-Type': 'application/json' }
       })
     );
+
   } catch (err) {
     console.error("Preview URL error:", err);
     return addCorsHeaders(
-      new Response(JSON.stringify({ error: err.message || String(err) }), { status: 500 })
+      new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 })
     );
   }
 });
